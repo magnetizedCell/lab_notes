@@ -41,6 +41,6 @@ ControllerNode has its local ip address 192.168.1.100. WorkerNodes have their lo
   
 3. 分散ファイルシステム  
   2.ができていることが前提. GlusterFSとかlustreとか試したい
-  
-4. セキュリティ  
+4. Burst Buffer
+5. セキュリティ  
 　別に非公開な文書を用意するのでよしなに
