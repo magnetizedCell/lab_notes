@@ -1,30 +1,25 @@
+![名称未設定ファイル drawio(1)](https://user-images.githubusercontent.com/80142550/230250566-6d388fb5-fc54-4642-8f3e-0982e89a18e6.png)
 
-![名称未設定ファイル drawio](https://user-images.githubusercontent.com/80142550/181688361-11fa1c27-da69-4386-8e63-0510372acaab.png)
+クラスターはControllerとWorkerからなり,[slurm](https://slurm.schedmd.com/documentation.html)によって操作される.
 
-クラスターはControllerNodeとWorkerNodeからなり,[slurm](https://slurm.schedmd.com/documentation.html)によって操作される.
-ControllerNodeはローカルip 192.168.1.100を持つ.
-WorkerNodesはローカルip 192.168.1.101~を持つ.
+ControllerNodeはslurmのコントローラーであるとともに,Workerのルーターでもある.  
+ControllerNodeはローカルip 192.168.1.200を持ち,WorkerNodesはローカルip 200.0.0.0/16を持つ.  
+WorkerNodeはその構成によってipアドレスの第3オクテットが異なり,また第4オクテットは1から追加順に振り分ける.  
+CPUのみのノードは200.0.0.1,200.0.0.2, ...  
+GPU1つのノードは200.0.1.1, 200.0.1.2, ...  
+GPU2つのノードは200.0.2.1, 200.0.2.2, ...  
+特殊なサーバーは200.0.3.1, 200.0.3.2, ...  
+といったふうである.ノードのホスト名も,CPUのみのノードはcpu-1, cpu-2, GPU1つのノードはgpu1-1, gpu1-2, ....などと名付ける. サーバーには固有の名前をつける.
 
 1. 各ユーザーはControllerNodeの自分のアカウントにログインし、[slurmコマンド](https://slurm.schedmd.com/pdfs/summary.pdf)を実行することでジョブを投入する.ControllerNodeの```/archive```, ```/projects```はNSFによってWorkerNodesと共有される。実行プログラムを```/projects```に置き、実行結果を```/archive```に入れるようにする。ControllerNodeはWorkerNodeの秘密鍵を持つ。
-2. WorkerNodeはslurmに渡されたジョブを実行する。すべてのWorkerNodeはssh公開鍵を共有し、```worker``` アカウントで作業をおこなう.
+2. WorkerNodeはslurmに渡されたジョブを実行する。すべてのWorkerNodeはおなじssh公開鍵を持っており、```worker``` アカウントで作業をおこなう.
 3. p100, epyc1はクラスタ以外のユーザーも使う. クラスタから一時的に外す方法は後に記述する.
-
-   
-
-The cluster is composed of one ControllerNode and multiple WorkerNodes. Batch job is queued and executed by [slurm](https://slurm.schedmd.com/documentation.html).
-ControllerNode has its local ip address 192.168.1.100. WorkerNodes have their local ip addresses 192.168.1.101-
-
-1. Each user logs in to his/her account of ControllerNode. And throw jobs using [slurm commands](https://slurm.schedmd.com/pdfs/summary.pdf). ControllerNode's Directories ```/archive``` and ```/projects``` are shared with NSF protocol among WorkerNodes. Put executable programs in ```/projects``` and let calculation results be in ```/archive```. ControllerNode has WorkerNodes' private key.
-2. Each WorkerNode executes jobs those are given by slurm. WorkerNodes share the same ssh public key for account ```worker``` .
-4. WorkerNodes p100 and epyc1 are used not only by the cluster. Temporal removal of these servers from the cluster will be described.
-
-
 
 
 ### 現在わかっている問題点
 - Controllerの持つ```/archive```ディレクトリとworkreの通信が遅い  
   現在はControllerとスイッチを10GBase, workerとスイッチを1GBaseでつないでいる.  
-  Controllerとworkerが1対1で通信するときは100Mbpsくらい出るが，15台のworkerが同時に通信したり，特に```/archive```への書き込みがあるときはかなり遅くなることが予想される．
+  Controllerとworkerが1対1で通信するときは100MBpsくらい出るが，15台のworkerが同時に通信したり，特に```/archive```への書き込みがあるときはかなり遅くなることが予想される．
   
   
 ### 解決策
@@ -35,8 +30,9 @@ ControllerNode has its local ip address 192.168.1.100. WorkerNodes have their lo
   こんなので25GBps環境を整えたり．なぜかスイッチはこの25GBpsが他の10GBpsより安い(2022/9/6時点)
 
   スイッチは25GbpsだけどSFP28接続の10GbpsのNICでもつながるはずなのでNICはもっと安いのがあるはず  
-    - https://www.oliospec.com/shopdetail/000000008576/ こんなのとか  
+    - https://www.oliospec.com/shopdetail/000000008576/ こんなのとか. 流石にこれだけ古いのは爆熱で別途冷却機構を追加することになるので注意
     ```/archive``` はHDDなので10Gbpsあれば十分か．マルチノード計算するときは10Gbpsは遅いかも．
+  
   自前で構築するにせよ業者に頼むにせよ，年々機器は安くなるのでいまは1.の方法をとっておく.
   
 3. 分散ファイルシステム  
@@ -44,3 +40,14 @@ ControllerNode has its local ip address 192.168.1.100. WorkerNodes have their lo
 4. Burst Buffer
 5. セキュリティ  
 　別に非公開な文書を用意するのでよしなに
+
+
+
+### 新ノードを追加したくなったときに注意すること
+1. 現在はwake on lanによって遠隔起動を実現しているが,信頼性があまりないし動かなくても保証がなかったりする.  
+IPMIやAMD PRO,Intel vProのような遠隔マネジメント機能を持つマシンを推奨する.後者2つはCPUとマザーボードが両方対応していないと意味がないので注意.  
+安いノードをたくさん使うのがこのクラスターのコンセプトだが,信頼性が低いマシンをたくさん管理するのは結構大変なのであまり安物は使わないこと.  
+既成品を買うなら1台借りたり買って検証するのも良い.
+
+
+
